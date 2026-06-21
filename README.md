@@ -2,15 +2,23 @@
 
 # MariaDBBukkit
 
-An embedded MariaDB server for Bukkit/Paper Minecraft servers. Drop the jar in your `plugins/` folder, restart your server, and you've got a real SQL database running — no external MySQL/MariaDB install needed.
+An embedded MariaDB server for Bukkit/Paper Minecraft servers. 
 
-Other plugins can grab a connection from the pool and start writing tables immediately.
+The whole point of this plugin is to save you the headache of setting up a separate MySQL or MariaDB server. 
+
+**Here's how easy it is:**
+1. Drop the `MariaDBBukkit.jar` into your `plugins/` folder and restart your server. It automatically sets up a real SQL database in the background.
+2. Go to **ANY third-party plugin** that needs a MySQL database (like LuckPerms, CoreProtect, LiteBans, etc.).
+3. Simply enter the host (usually `localhost`), port, database name, username, and password configured in `plugins/MariaDBBukkit/config.yml`.
+
+That's it! It works exactly like a regular MySQL server for your other plugins, with zero external installation or setup required.
 
 ## What it does
 
 - Starts an embedded MariaDB server when your Minecraft server boots up
 - Downloads the native binaries automatically on first run (from Maven Central)
 - Creates the database and user for you — just configure what you want in `config.yml`
+- Acts as a drop-in MySQL replacement for any third-party plugin
 - Exposes a HikariCP connection pool that other plugins can use through Bukkit's ServicesManager
 - Gives you a `/mariadbbukkit` command to check status, restart, or stop the database without restarting the whole server
 
@@ -18,7 +26,7 @@ Other plugins can grab a connection from the pool and start writing tables immed
 
 Drop the jar into `plugins/`, edit `plugins/MariaDBBukkit/config.yml` if you want to change anything (database name, port, etc.), and restart. It'll download MariaDB binaries on first startup — might take a minute depending on your connection.
 
-The default config works fine for most setups. You probably want to change the password from `change-me-please`.
+The default config works fine for most setups. You probably want to change the password from `root_password`.
 
 ### Commands
 

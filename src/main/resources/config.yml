@@ -1,0 +1,80 @@
+# MariaDBBukkit configuration
+# All paths are relative to the server's plugins/MariaDBBukkit/ folder unless absolute.
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+database:
+  # Name of the database/schema that other plugins will use.
+  name: minecraft_db
+  # Username/password other plugins connect with. With skip-grant-tables (below)
+  # these are accepted but not strictly enforced; they still work via JDBC.
+  username: root
+  password: root_password
+
+  # TCP port the embedded server listens on. Use 0 to auto-pick a free port.
+  # When 0, the chosen port is exposed at runtime via the service API.
+  port: 3306
+
+# ---------------------------------------------------------------------------
+# Storage locations (persisted data + downloaded binaries live here)
+# ---------------------------------------------------------------------------
+storage:
+  # Where the MariaDB install (bin/lib/share) is kept. Downloaded here if missing.
+  base-dir: "mariadb"
+  # Where MariaDB data files (your actual databases) are stored.
+  data-dir: "data"
+  # Temporary dir MariaDB uses at runtime.
+  tmp-dir: "tmp"
+
+# ---------------------------------------------------------------------------
+# Binary provisioning
+# ---------------------------------------------------------------------------
+download:
+  # If true, missing MariaDB binaries are downloaded automatically on startup.
+  enabled: true
+  # MariaDB version to download (must match a MariaDB4j DB artifact version,
+  # e.g. 11.4.5, 10.11.5). Used for Linux x86_64, Windows x86_64, macOS arm64.
+  mariadb-version: "11.4.5"
+  # Override the download URL for your platform. Leave empty to use the default
+  # for your OS/arch. If your platform has no default (e.g. Linux aarch64),
+  # set this to a URL pointing at a compatible MariaDB binary archive (a zip/jar
+  # whose top-level folder contains bin/, lib/, share/), OR pre-place binaries
+  # in storage.base-dir yourself.
+  source-url: ""
+
+# ---------------------------------------------------------------------------
+# Security
+# ---------------------------------------------------------------------------
+security:
+  # When true (default), MariaDB starts with --skip-grant-tables. This is fine
+  # for an embedded, localhost-only database. The configured username/password
+  # above are still accepted by JDBC clients. Set to false only if you know what
+  # you are doing (MariaDB4j will then enforce authentication).
+  skip-grant-tables: true
+
+# ---------------------------------------------------------------------------
+# Connection pool (HikariCP) - used for the DataSource exposed to other plugins
+# ---------------------------------------------------------------------------
+pool:
+  maximum-pool-size: 10
+  connection-timeout-ms: 30000
+  idle-timeout-ms: 600000
+  max-lifetime-ms: 1800000
+  minimum-idle: 2
+
+# ---------------------------------------------------------------------------
+# Termux (Android)
+# ---------------------------------------------------------------------------
+# On Termux the glibc binaries from Maven Central cannot run (Android uses
+# bionic libc), so the plugin uses the Termux-native 'mariadb' apt package
+# instead. This is auto-detected; the options below only apply on Termux.
+termux:
+  # If true and mariadbd is not installed, the plugin will run
+  # 'pkg install -y mariadb' for you on startup.
+  auto-install: true
+
+# ---------------------------------------------------------------------------
+# Misc
+# ---------------------------------------------------------------------------
+debug: false

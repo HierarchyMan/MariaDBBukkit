@@ -1,0 +1,17 @@
+name: MariaDBBukkit
+version: ${project.version}
+main: com.mariadbbukkit.MariaDBBukkitPlugin
+api-version: '1.21'
+author: MariaDBBukkit
+description: Self-contained, portable embedded MariaDB for Bukkit/Paper servers. Other plugins can depend on this to get a JDBC DataSource.
+website: https://github.com/HierarchyMan/MariaDBBukkit
+load: STARTUP
+commands:
+  mariadbbukkit:
+    description: MariaDBBukkit management command
+    usage: /mariadbbukkit [status|restart|stop]
+    permission: mariadbbukkit.admin
+permissions:
+  mariadbbukkit.admin:
+    description: Allows managing MariaDBBukkit
+    default: op

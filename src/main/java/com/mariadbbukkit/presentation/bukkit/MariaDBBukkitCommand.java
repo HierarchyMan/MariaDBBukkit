@@ -1,12 +1,9 @@
-package com.mariadbbukkit;
+package com.mariadbbukkit.presentation.bukkit;
 
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 
-/**
- * Handles {@code /mariadbbukkit status|restart|stop}.
- */
 public final class MariaDBBukkitCommand implements CommandExecutor {
 
     private final MariaDBBukkitPlugin plugin;

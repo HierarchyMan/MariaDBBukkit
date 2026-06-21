@@ -1,6 +1,6 @@
 name: MariaDBBukkit
 version: ${project.version}
-main: com.mariadbbukkit.MariaDBBukkitPlugin
+main: com.mariadbbukkit.presentation.bukkit.MariaDBBukkitPlugin
 api-version: '1.21'
 author: MariaDBBukkit
 description: Self-contained, portable embedded MariaDB for Bukkit/Paper servers. Other plugins can depend on this to get a JDBC DataSource.

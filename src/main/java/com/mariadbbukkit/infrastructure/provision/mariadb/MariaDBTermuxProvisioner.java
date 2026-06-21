@@ -1,4 +1,7 @@
-package com.mariadbbukkit.db;
+package com.mariadbbukkit.infrastructure.provision.mariadb;
+
+import com.mariadbbukkit.domain.model.database.DatabaseConfig;
+import com.mariadbbukkit.domain.model.provision.Provisioner;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -8,50 +11,28 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * Termux-specific provisioner. Termux runs on Android's bionic libc, so the
- * glibc MariaDB binaries shipped by MariaDB4j cannot run there. Instead this
- * uses the Termux-native {@code mariadb} apt package, and works around two
- * Termux-specific quirks:
- *
- * <ol>
- *   <li>The {@code mariadb-install-db} script shipped by Termux has a broken
- *       hardcoded path when {@code --basedir} is passed. We invoke it by bare
- *       name on PATH without {@code --basedir}, which hits the script's correct
- *       {@code else} branch (hardcoded Termux prefix).</li>
- *   <li>MariaDB4j's own {@code install()} step passes {@code --basedir}, which
- *       would break. We pre-initialise the data directory ourselves, so
- *       MariaDB4j sees a populated data dir and skips its install step
- *       entirely (see {@code DB.newEmbeddedDB}).</li>
- * </ol>
- */
-public final class TermuxProvisioner {
+public final class MariaDBTermuxProvisioner implements Provisioner {
 
     private final Logger log;
-    private final String prefix;
-    private final Path dataDir;
-    private final boolean autoInstall;
 
-    public TermuxProvisioner(Logger log, String prefix, Path dataDir, boolean autoInstall) {
+    public MariaDBTermuxProvisioner(Logger log) {
         this.log = log;
-        this.prefix = prefix;
-        this.dataDir = dataDir;
-        this.autoInstall = autoInstall;
     }
 
-    /** @return the Termux prefix path (install root). */
-    public Path ensureBinaries() throws IOException {
+    @Override
+    public Path ensureBinaries(DatabaseConfig config) throws IOException {
+        String prefix = config.getTermux().getPrefix();
         Path mariadbd = Path.of(prefix, "bin", "mariadbd");
         if (Files.exists(mariadbd)) {
             log.info("Termux: using host MariaDB binaries at " + prefix);
             return Path.of(prefix);
         }
-        if (!autoInstall) {
+        if (!config.getTermux().isAutoInstall()) {
             throw new IOException("Termux MariaDB not installed at " + prefix + " and"
                     + " termux.auto-install is disabled. Run: pkg install mariadb");
         }
         log.info("Termux: mariadbd not found, installing via 'pkg install -y mariadb'...");
-        runCommand(new String[]{"pkg", "install", "-y", "mariadb"}, "pkg install mariadb");
+        runCommand(prefix, new String[]{"pkg", "install", "-y", "mariadb"}, "pkg install mariadb");
         if (!Files.exists(mariadbd)) {
             throw new IOException("pkg install mariadb did not produce " + mariadbd
                     + ". Install it manually: pkg install mariadb");
@@ -60,11 +41,10 @@ public final class TermuxProvisioner {
         return Path.of(prefix);
     }
 
-    /**
-     * Pre-initialises the data directory if empty, using the working bare-name
-     * invocation of {@code mariadb-install-db} (no {@code --basedir}).
-     */
-    public void ensureDataDir() throws IOException {
+    @Override
+    public void ensureDataDir(DatabaseConfig config) throws IOException {
+        String prefix = config.getTermux().getPrefix();
+        Path dataDir = config.getStorage().getDataDir();
         if (Files.isDirectory(dataDir)) {
             try (var stream = Files.list(dataDir)) {
                 if (stream.findAny().isPresent()) {
@@ -85,11 +65,11 @@ public final class TermuxProvisioner {
         cmd.add("--datadir=" + dataDir.toAbsolutePath());
         log.info("Termux: initialising MariaDB data directory at " + dataDir
                 + " (bare-name install-db, no --basedir to avoid Termux script bug)");
-        runCommand(cmd.toArray(new String[0]), "mariadb-install-db");
+        runCommand(prefix, cmd.toArray(new String[0]), "mariadb-install-db");
         log.info("Termux: data directory ready.");
     }
 
-    private void runCommand(String[] cmd, String label) throws IOException {
+    private void runCommand(String prefix, String[] cmd, String label) throws IOException {
         ProcessBuilder pb = new ProcessBuilder(cmd).redirectErrorStream(true);
         pb.environment().put("PATH", prefix + "/bin:" + System.getenv("PATH"));
         try {

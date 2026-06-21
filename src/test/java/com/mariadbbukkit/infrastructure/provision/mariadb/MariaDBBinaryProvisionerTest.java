@@ -1,6 +1,10 @@
-package com.mariadbbukkit.db;
+package com.mariadbbukkit.infrastructure.provision.mariadb;
 
-import com.mariadbbukkit.util.Platforms;
+import com.mariadbbukkit.domain.model.database.DatabaseConfig;
+import com.mariadbbukkit.domain.model.database.DatabaseType;
+import com.mariadbbukkit.domain.model.platform.Platform;
+import com.mariadbbukkit.domain.model.platform.PlatformDetector;
+import com.mariadbbukkit.infrastructure.platform.SystemPlatformDetector;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -11,40 +15,68 @@ import java.util.logging.Logger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
-class BinaryProvisionerTest {
+class MariaDBBinaryProvisionerTest {
 
     private static final Logger LOG = Logger.getLogger("test");
+
+    private static class MockPlatformDetector implements PlatformDetector {
+        private final Platform platform;
+
+        public MockPlatformDetector(Platform platform) {
+            this.platform = platform;
+        }
+
+        @Override
+        public Platform current() {
+            return platform;
+        }
+
+        @Override
+        public String termuxPrefix() {
+            return null;
+        }
+    }
+
+    private DatabaseConfig createMockConfig(Path tmp, String version, String customUrl) {
+        return new DatabaseConfig(
+                DatabaseType.MARIADB,
+                new DatabaseConfig.Port(3306),
+                new DatabaseConfig.Credentials("db", "user", "pass"),
+                new DatabaseConfig.Storage(tmp, tmp, tmp),
+                new DatabaseConfig.Pool(10, 2, 30000L, 600000L, 1800000L),
+                new DatabaseConfig.Security(true),
+                new DatabaseConfig.Termux(true, null),
+                new DatabaseConfig.Download(true, version, customUrl)
+        );
+    }
 
     @Test
     void defaultUrlsAreMappedForSupportedPlatforms() {
         assertEquals(
                 "https://repo1.maven.org/maven2/ch/vorburger/mariaDB4j/mariaDB4j-db-linux64/11.4.5/mariaDB4j-db-linux64-11.4.5.jar",
-                BinaryProvisioner.defaultUrl(Platforms.LINUX_X86_64, "11.4.5"));
+                MariaDBBinaryProvisioner.defaultUrl(Platform.LINUX_X86_64, "11.4.5"));
         assertEquals(
                 "https://repo1.maven.org/maven2/ch/vorburger/mariaDB4j/mariaDB4j-db-winx64/11.4.5/mariaDB4j-db-winx64-11.4.5.jar",
-                BinaryProvisioner.defaultUrl(Platforms.WINDOWS_X86_64, "11.4.5"));
+                MariaDBBinaryProvisioner.defaultUrl(Platform.WINDOWS_X86_64, "11.4.5"));
         assertEquals(
                 "https://repo1.maven.org/maven2/ch/vorburger/mariaDB4j/mariaDB4j-db-macos-arm64/11.4.5/mariaDB4j-db-macos-arm64-11.4.5.jar",
-                BinaryProvisioner.defaultUrl(Platforms.MACOS_AARCH64, "11.4.5"));
+                MariaDBBinaryProvisioner.defaultUrl(Platform.MACOS_AARCH64, "11.4.5"));
     }
 
     @Test
     void defaultUrlIsNullForUnsupportedPlatforms() {
-        assertNull(BinaryProvisioner.defaultUrl(Platforms.LINUX_AARCH64, "11.4.5"));
-        assertNull(BinaryProvisioner.defaultUrl(Platforms.UNKNOWN, "11.4.5"));
+        assertNull(MariaDBBinaryProvisioner.defaultUrl(Platform.LINUX_AARCH64, "11.4.5"));
+        assertNull(MariaDBBinaryProvisioner.defaultUrl(Platform.UNKNOWN, "11.4.5"));
     }
 
     @Test
     void customUrlOverridesDefault(@TempDir Path tmp) {
-        BinaryProvisioner p = new BinaryProvisioner(LOG, tmp, true, "11.4.5",
-                "https://example.com/custom.jar");
-        assertEquals("https://example.com/custom.jar", p.pickDownloadUrl());
+        var detector = new MockPlatformDetector(Platform.WINDOWS_X86_64);
+        MariaDBBinaryProvisioner p = new MariaDBBinaryProvisioner(LOG, detector);
+        var config = createMockConfig(tmp, "11.4.5", "https://example.com/custom.jar");
+        assertEquals("https://example.com/custom.jar", p.pickDownloadUrl(config));
     }
 
     @Test
@@ -52,11 +84,13 @@ class BinaryProvisionerTest {
         Path wrapper = tmp.resolve("mariadb-11.4.5-linux-x86_64");
         Path bin = wrapper.resolve("bin");
         Files.createDirectories(bin);
-        String server = Platforms.current().serverBinaryNames()[0];
+        
+        var detector = new SystemPlatformDetector();
+        String server = detector.current().getServerBinaryNames()[0];
         Files.write(bin.resolve(server), new byte[]{0});
 
-        BinaryProvisioner p = new BinaryProvisioner(LOG, tmp, true, "11.4.5", "");
-        Path found = p.findExistingInstall();
+        MariaDBBinaryProvisioner p = new MariaDBBinaryProvisioner(LOG, detector);
+        Path found = p.findExistingInstall(tmp);
         assertNotNull(found, "wrapped install should be detected");
         assertEquals(wrapper.toAbsolutePath(), found.toAbsolutePath());
     }
@@ -64,7 +98,8 @@ class BinaryProvisionerTest {
     @Test
     void extractAndResolveInstallRootFromWrappedZip(@TempDir Path tmp) throws IOException {
         Path zip = tmp.resolve("fake.jar");
-        String server = Platforms.current().serverBinaryNames()[0];
+        var detector = new SystemPlatformDetector();
+        String server = detector.current().getServerBinaryNames()[0];
         try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(zip))) {
             zos.putNextEntry(new ZipEntry("mariadb-11.4.5/bin/"));
             zos.closeEntry();
@@ -79,7 +114,7 @@ class BinaryProvisionerTest {
             zos.closeEntry();
         }
 
-        BinaryProvisioner p = new BinaryProvisioner(LOG, tmp, true, "11.4.5", "");
+        MariaDBBinaryProvisioner p = new MariaDBBinaryProvisioner(LOG, detector);
         Path staged = Files.createTempDirectory(tmp, "stage-");
         p.extractArchive(zip, staged);
         Path root = p.resolveInstallRoot(staged);
@@ -96,11 +131,12 @@ class BinaryProvisionerTest {
             zos.write(new byte[]{0});
             zos.closeEntry();
         }
-        BinaryProvisioner p = new BinaryProvisioner(LOG, tmp, true, "11.4.5", "");
+        var detector = new SystemPlatformDetector();
+        MariaDBBinaryProvisioner p = new MariaDBBinaryProvisioner(LOG, detector);
         Path staged = Files.createTempDirectory(tmp, "stage-");
         try {
             p.extractArchive(zip, staged);
-            assertFalse(true, "expected zip-slip IOException");
+            fail("expected zip-slip IOException");
         } catch (IOException expected) {
             assertTrue(expected.getMessage().contains("zip slip"));
         }
@@ -108,6 +144,6 @@ class BinaryProvisionerTest {
 
     @Test
     void platformDetectionDoesNotThrow() {
-        assertNotNull(Platforms.current());
+        assertNotNull(new SystemPlatformDetector().current());
     }
 }
